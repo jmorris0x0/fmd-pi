@@ -7,7 +7,7 @@ import json
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-import psutil
+import math
 
 
 def sensor(): 
@@ -22,7 +22,14 @@ def sensor():
     t0 = time.time()
     while True:
         tn = time.time() - t0
-        data = [tn, random.random()]
+        
+        trend = 50 * math.sin(tn/5) + 50      
+        signal = 10 * math.cos(8 * tn) + 10  
+        noise = 2 * random.random()
+        
+        value = trend + signal + noise
+
+        data = [tn, value]
         socket.send_string(topic, zmq.SNDMORE)
         socket.send_pyobj(data)
         time.sleep(0.01)
@@ -78,7 +85,7 @@ def plotter():
         x_vec.append(frame[0])
         y_vec.append(frame[1])
         
-        if count == 50:
+        if count == 25:
             count = 0
             line1.set_data(x_vec, y_vec)
  
