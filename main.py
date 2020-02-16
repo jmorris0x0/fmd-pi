@@ -11,7 +11,7 @@ import psutil
 
 
 def sensor(): 
-    print("Sensor process started: {}".format(os.getpid()))
+    #print("Sensor process started: {}".format(os.getpid()))
     time.sleep(1)
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
@@ -29,7 +29,7 @@ def sensor():
 
 
 def processor():
-    print("Processor process started: {}".format(os.getpid())) 
+    #print("Processor process started: {}".format(os.getpid())) 
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5555")
@@ -43,15 +43,11 @@ def processor():
 
 def plotter(): 
     # printing process id 
-    print("Plotter process started: {}".format(os.getpid())) 
+    #print("Plotter process started: {}".format(os.getpid())) 
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5555")
     socket.setsockopt(zmq.SUBSCRIBE, b'sensor')
-
-
-
-
 
     plt.style.use('ggplot')
 
@@ -69,8 +65,11 @@ def plotter():
 
     plt.show()
 
-    plt.xlim([0, 60])
-    plt.ylim([-1, 1])
+    ax[0].set_xlim([0, 60])
+    ax[0].set_ylim([0, 150])
+
+    render = False
+    count = 0
 
     while True:
         topic = socket.recv_string()
@@ -79,13 +78,16 @@ def plotter():
         x_vec.append(frame[0])
         y_vec.append(frame[1])
         
-
-        line1.set_data(x_vec, y_vec)
+        if count == 50:
+            count = 0
+            line1.set_data(x_vec, y_vec)
+ 
+            if np.min(y_vec)<=line1.axes.get_ylim()[0] or np.max(y_vec)>=line1.axes.get_ylim()[1]:
+                ax[0].set_ylim([np.min(y_vec)-np.std(y_vec),np.max(y_vec)+np.std(y_vec)])
         
-        if np.min(y_vec)<=line1.axes.get_ylim()[0] or np.max(y_vec)>=line1.axes.get_ylim()[1]:
-            ax[0].set_ylim([np.min(y_vec)-np.std(y_vec),np.max(y_vec)+np.std(y_vec)])
-        
-        plt.pause(0.1)
+            plt.pause(0.1)
+ 
+        count += 1
 
 
 if __name__ == "__main__": 
