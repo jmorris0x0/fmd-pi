@@ -30,9 +30,10 @@ def sensor_process():
         value = trend + signal + noise
 
         data = [tn, value]
+
         pub_socket.send_string(topic, zmq.SNDMORE)
         pub_socket.send_pyobj(data)
-        time.sleep(0.01)
+        time.sleep(0.001)
 
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
@@ -81,43 +82,14 @@ def filter_process():
         #https://stackoverflow.com/questions/30552925/how-to-handle-multiple-publishers-on-same-port-in-zmq
 
         data = [tn, result[0]]
+
         pub_socket.send_string(pub_topic, zmq.SNDMORE)
         pub_socket.send_pyobj(data)
 
 
-def plotter_process_2(): 
-    plots = [{'topic': b'sensor', 'port': '5555', 'label': 'Pressure [mmHg]', 'style': '-,g'},
-            {'topic': b'filter', 'port': '5556', 'label': 'Pressure [mmHg]', 'style': '-,r'}]
-
-    socket = [zmq.Context().socket(zmq.SUB)] * len(plots)
-
-    for i in range(len(socket)):
-        socket[i].connect("tcp://localhost:" + plots[i].get('port'))
-        socket[i].setsockopt(zmq.SUBSCRIBE, plots[i].get('topic'))
-        print(i)
-    
-    #x_vec = [[]] * len(plots)
-    #y_vec = [[]] * len(plots)
-
-    #plt.style.use('ggplot')
-    #plt.ion()
-    #fig,ax = plt.subplots(len(plots), 1, figsize=(12,7), sharex=True)
-    #fig.align_ylabels(ax)
-
-
-    #for i in range(len(ax)):
-    #   ax[i].set_ylabel(plots[i].get('label'), fontsize=12)
-
-    #line1, = ax[0].plot(x_vec[0], y_vec[0], '-,g', alpha=0.8)     
-    #line2, = ax[1].plot(x_vec, y_vec, '-,r', alpha=0.8)
-
-
-
-
-
 def plotter_process(): 
-    plots = [{'topic': b'sensor', 'port': '5555', 'label': 'Pressure [mmHg]', 'style': '-,g'},
-            {'topic': b'filter', 'port': '5556', 'label': 'Smooth Pressure [mmHg]', 'style': '-,r'}]
+    plots = [{'topic': b'sensor', 'port': '5555', 'label': 'P [mmHg]', 'style': '-,g'},
+            {'topic': b'filter', 'port': '5556', 'label': 'Low pass P [mmHg]', 'style': '-,r'}]
 
     context = zmq.Context()
     
@@ -131,45 +103,46 @@ def plotter_process():
 
     plt.style.use('ggplot')
 
-    x_vec = [[]] * len(plots)
-    y_vec = [[]] * len(plots)
+    x_vec = [[] for x in range(len(plots))]
+    y_vec = [[] for x in range(len(plots))]
 
     plt.ion()
     fig,ax = plt.subplots(len(plots), 1,figsize=(12,7), sharex=True)
     fig.align_ylabels(ax)
 
     for i in range(len(ax)):
-       ax[i].set_ylabel(plots[i].get('label'), fontsize=12)
+        ax[i].set_ylabel(plots[i].get('label'), fontsize=12)
+        ax[i].set_xlim([0, 60])
+        ax[i].set_ylim([0, 150])
 
-    line1, = ax[0].plot(x_vec[0], y_vec[0], '-,g', alpha=0.8)        
+    line = [[0] for x in range(len(plots))]
 
+    for i in range(len(ax)):
+        line[i], = ax[i].plot(x_vec[i], y_vec[i], plots[i].get('style'), alpha=0.8)     
+    
     plt.show()
-
-    ax[0].set_xlim([0, 60])
-    ax[0].set_ylim([0, 150])
-
     render = False
     count = 0
 
     while True:
-        topic = socket[0].recv_string()
-        #print(topic)
+        for i in range(0, len(plots)):
+            topic = socket[i].recv_string()
+            frame = socket[i].recv_pyobj()            
+            x_vec[i].append(frame[0])
+            y_vec[i].append(frame[1])
 
-        frame = socket[0].recv_pyobj()
-        #print(frame)
-        #exit(0)
-
-        x_vec.append(frame[0])
-        y_vec.append(frame[1])
-        
         if count == 25:
             count = 0
-            line1.set_data(x_vec, y_vec)
+            
+            for i in range(len(plots)):
+                line[i].set_data(x_vec[i], y_vec[i])
  
             #if np.min(y_vec)<=line1.axes.get_ylim()[0] or np.max(y_vec)>=line1.axes.get_ylim()[1]:
             #    ax[0].set_ylim([np.min(y_vec)-np.std(y_vec),np.max(y_vec)+np.std(y_vec)])
-        
-            plt.pause(0.1)
+
+            plt.pause(0.001)
+            #fig.canvas.draw()
+            #fig.canvas.flush_events()
  
         count += 1
 
